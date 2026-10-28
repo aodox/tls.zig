@@ -239,7 +239,7 @@ pub const Connection = struct {
                     // rfc 8446: implementations MUST NOT send zero-length
                     // fragments of Handshake types.
                     if (cleartext.len == 0) return error.TlsUnexpectedMessage;
-                    const handshake_type: proto.Handshake = @fromBackingInt(@intCast(cleartext[0]));
+                    const handshake_type: proto.Handshake = @enumFromInt(cleartext[0]);
                     switch (handshake_type) {
                         .new_session_ticket => {
                             if (c.session_resumption) |r| {
@@ -252,7 +252,7 @@ pub const Connection = struct {
                             // rfc: Upon receiving a KeyUpdate, the receiver MUST
                             // update its receiving keys.
                             try c.cipher.keyUpdateDecrypt();
-                            const key: proto.KeyUpdateRequest = @fromBackingInt(@intCast(cleartext[4]));
+                            const key: proto.KeyUpdateRequest = @enumFromInt(cleartext[4]);
                             switch (key) {
                                 .update_requested => {
                                     @atomicStore(bool, &c.key_update_requested, true, .monotonic);
@@ -310,8 +310,8 @@ pub const Connection = struct {
             .open => .{ proto.Alert.closeNotify(), .close_sent },
             .peer_closed => .{ proto.Alert.closeNotify(), .closed },
             .fatal_alert_pending => .{ [2]u8{
-                @backingInt(proto.Alert.Level.fatal),
-                @backingInt(c.pending_alert.?),
+                @intFromEnum(proto.Alert.Level.fatal),
+                @intFromEnum(c.pending_alert.?),
             }, .failed },
             .close_sent, .closed, .failed => return null,
         };
@@ -820,7 +820,7 @@ test "read queues protocol alert without writing" {
     // A complete record header with a version rejected by established TLS
     // connections. The payload is empty, so no decryption is attempted.
     const invalid_record = [_]u8{
-        @backingInt(proto.ContentType.application_data),
+        @intFromEnum(proto.ContentType.application_data),
         0x03,
         0x04,
         0,
@@ -850,8 +850,8 @@ test "read queues protocol alert without writing" {
     );
     try testing.expectEqual(.alert, content_type);
     try testing.expectEqualSlices(u8, &.{
-        @backingInt(proto.Alert.Level.fatal),
-        @backingInt(proto.Alert.protocol_version),
+        @intFromEnum(proto.Alert.Level.fatal),
+        @intFromEnum(proto.Alert.protocol_version),
     }, alert);
     const alert_end = output.end;
     try conn.close();
@@ -861,7 +861,7 @@ test "read queues protocol alert without writing" {
 
 test "protocol failure after close_notify sends nothing further" {
     const invalid_record = [_]u8{
-        @backingInt(proto.ContentType.application_data),
+        @intFromEnum(proto.ContentType.application_data),
         0x03,
         0x04,
         0,
@@ -963,7 +963,7 @@ const PartialReader = struct {
 
 test "transport EOF without close_notify" {
     // Three bytes of a five byte record header, then end of stream.
-    const partial_header = [_]u8{ @backingInt(proto.ContentType.application_data), 0x03, 0x03 };
+    const partial_header = [_]u8{ @intFromEnum(proto.ContentType.application_data), 0x03, 0x03 };
 
     const cases = [_]struct {
         prefix: []const u8,
@@ -1306,7 +1306,7 @@ test "handshake record with an empty body" {
     // number 0 the nonce is the iv unchanged.
     var rec: [record.header_len + 1 + Aes256Gcm.tag_length]u8 = undefined;
     rec[0..record.header_len].* = record.header(.application_data, 1 + Aes256Gcm.tag_length);
-    var ciphertext: [1]u8 = .{@backingInt(proto.ContentType.handshake)};
+    var ciphertext: [1]u8 = .{@intFromEnum(proto.ContentType.handshake)};
     var auth_tag: [Aes256Gcm.tag_length]u8 = undefined;
     Aes256Gcm.encrypt(
         &ciphertext,
@@ -1401,7 +1401,7 @@ test "nonblock close uses pending fatal alert and state" {
     const client_cipher, _ = cipher.testCiphers();
     var conn = NonBlock.init(client_cipher);
     const invalid_record = [_]u8{
-        @backingInt(proto.ContentType.application_data),
+        @intFromEnum(proto.ContentType.application_data),
         0x03,
         0x04,
         0,
